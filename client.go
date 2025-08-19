@@ -93,7 +93,11 @@ func (c *Client) writeBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobW
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return BlobWriteResponse{}, fmt.Errorf("unexpected status code: %d error: %s", resp.StatusCode, string(respData))
+		var errResp Error
+		if err := json.Unmarshal(respData, &errResp); err != nil {
+			return BlobWriteResponse{}, fmt.Errorf("unexpected status code: %d error: %s", resp.StatusCode, string(respData))
+		}
+		return BlobWriteResponse{}, errResp
 	}
 
 	var blobResp BlobWriteResponse
@@ -111,6 +115,10 @@ func (c *Client) WriteBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobW
 		writeResp, err := c.writeBlob(ctx, blobReq)
 		if err == nil {
 			return writeResp, nil
+		}
+
+		if respError, ok := err.(Error); ok && !respError.IsRetryable() {
+			return BlobWriteResponse{}, err
 		}
 
 		if i == c.conf.MaxRetries-1 {

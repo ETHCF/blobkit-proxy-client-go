@@ -1,14 +1,39 @@
 package blobkit_proxy
 
+import "fmt"
+
+var nonRetryableErrors = map[string]struct{}{
+	"INVALID_REQUEST":       {},
+	"PAYMENT_INVALID":       {},
+	"JOB_ALREADY_COMPLETED": {},
+	"JOB_EXPIRED":           {},
+	"BLOB_TOO_LARGE":        {},
+	"SIGNATURE_INVALID":     {},
+	// "BLOB_EXECUTION_FAILED": {},
+	// "TRANSACTION_FAILED":   {},
+}
+
 type Error struct {
-	Error   string `json:"error"`
+	Err     string `json:"error"`
 	Message string `json:"message"`
 }
+
+func (e Error) Error() string {
+	return fmt.Sprintf("%s: %s", e.Err, e.Message)
+}
+
+func (e Error) IsRetryable() bool {
+	_, ok := nonRetryableErrors[e.Err]
+	return !ok
+}
+
+// Ensure Error implements the error interface
+var _ error = Error{}
 
 type StatusResponse struct {
 	Status          string `json:"status"`
 	Version         string `json:"version"`
-	ChainId         int    `json:"chainId"`
+	ChainID         int    `json:"chainId"`
 	EscrowContract  string `json:"escrowContract"`
 	ProxyFeePercent int    `json:"proxyFeePercent"`
 	MaxBlobSize     int    `json:"maxBlobSize"`
@@ -30,7 +55,7 @@ type BlobWriteRequest struct {
 		Filename    string   `json:"filename,omitempty"`
 		ContentType string   `json:"contentType,omitempty"`
 		Tags        []string `json:"tags,omitempty"`
-		CallbackUrl string   `json:"callbackUrl,omitempty"`
+		CallbackURL string   `json:"callbackUrl,omitempty"`
 	} `json:"meta"`
 }
 
