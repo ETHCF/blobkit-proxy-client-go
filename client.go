@@ -1,3 +1,4 @@
+// Package blobkit_proxy provides a client for interacting with the BlobKit proxy service.
 package blobkit_proxy
 
 import (
@@ -13,11 +14,15 @@ import (
 	"github.com/cockroachdb/errors"
 )
 
+// Client represents a BlobKit proxy client that handles HTTP communication
+// with the BlobKit proxy service.
 type Client struct {
 	conf   ProxyConfig
 	client *http.Client
 }
 
+// NewClient creates a new BlobKit proxy client with the provided configuration.
+// The configuration is normalized with default values applied automatically.
 func NewClient(conf ProxyConfig) *Client {
 	return &Client{
 		conf:   conf.WithDefaults(),
@@ -58,6 +63,8 @@ func (c *Client) get(ctx context.Context, method, path string, out any) error {
 	return nil
 }
 
+// GetStatus retrieves the current status and health information from the BlobKit proxy service.
+// It returns a StatusResponse containing service health details and configuration.
 func (c *Client) GetStatus(ctx context.Context) (StatusResponse, error) {
 	var status StatusResponse
 	if err := c.get(ctx, http.MethodGet, "/api/v1/health", &status); err != nil {
@@ -66,6 +73,8 @@ func (c *Client) GetStatus(ctx context.Context) (StatusResponse, error) {
 	return status, nil
 }
 
+// GetEscrowContract retrieves the escrow contract address from the BlobKit proxy service.
+// It calls GetStatus internally and extracts the EscrowContract field.
 func (c *Client) GetEscrowContract(ctx context.Context) (string, error) {
 	status, err := c.GetStatus(ctx)
 	if err != nil {
@@ -116,6 +125,9 @@ func (c *Client) writeBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobW
 	return blobResp, nil
 }
 
+// WriteBlob writes blob data to the BlobKit proxy service with automatic retry logic.
+// It retries failed requests up to MaxRetries times with RetryDelay between attempts.
+// Non-retryable errors (as determined by the Error.IsRetryable method) will not be retried.
 func (c *Client) WriteBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobWriteResponse, error) {
 
 	for i := range c.conf.MaxRetries {
