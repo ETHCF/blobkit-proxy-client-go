@@ -2,18 +2,31 @@ package blobkit_proxy
 
 import "time"
 
+const (
+	MainnetDefaultProxyURL = "https://proxy.blobkit.org"
+	DefaultRequestTimeout  = 60 * time.Second
+	DefaultRetryDelay      = 3 * time.Second
+)
+
 type ProxyConfig struct {
-	Endpoint string
-	Timeout  time.Duration
+	Endpoint   string
+	Timeout    time.Duration
+	MaxRetries int
+	RetryDelay time.Duration
 }
 
-type StatusResponse struct {
-	Status          string `json:"status"`
-	Version         string `json:"version"`
-	ChainId         int    `json:"chainId"`
-	EscrowContract  string `json:"escrowContract"`
-	ProxyFeePercent int    `json:"proxyFeePercent"`
-	MaxBlobSize     int    `json:"maxBlobSize"`
-	Uptime          int    `json:"uptime"`
-	Signer          string `json:"signer"`
+func (pc ProxyConfig) WithDefaults() ProxyConfig {
+	if pc.Endpoint == "" {
+		pc.Endpoint = MainnetDefaultProxyURL
+	}
+	if pc.Timeout == 0 {
+		pc.Timeout = DefaultRequestTimeout
+	}
+	if pc.MaxRetries == 0 {
+		pc.MaxRetries = 3
+	}
+	if pc.RetryDelay == 0 {
+		pc.RetryDelay = DefaultRetryDelay
+	}
+	return pc
 }

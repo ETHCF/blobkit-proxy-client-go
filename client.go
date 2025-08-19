@@ -1,12 +1,14 @@
 package blobkit_proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/cockroachdb/errors"
 )
@@ -18,7 +20,7 @@ type Client struct {
 
 func NewClient(conf ProxyConfig) *Client {
 	return &Client{
-		conf:   conf,
+		conf:   conf.WithDefaults(),
 		client: &http.Client{Timeout: conf.Timeout},
 	}
 }
@@ -62,4 +64,60 @@ func (c *Client) GetStatus(ctx context.Context) (StatusResponse, error) {
 		return StatusResponse{}, err
 	}
 	return status, nil
+}
+
+func (c *Client) writeBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobWriteResponse, error) {
+	ep, err := url.JoinPath(c.conf.Endpoint, "/api/v1/blob/write")
+	if err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to create write blob endpoint URL")
+	}
+	data, err := json.Marshal(blobReq)
+	if err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to marshal request")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewBuffer(data))
+	if err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to create request")
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to send request")
+	}
+	defer resp.Body.Close()
+
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to read response body")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return BlobWriteResponse{}, fmt.Errorf("unexpected status code: %d error: %s", resp.StatusCode, string(respData))
+	}
+
+	var blobResp BlobWriteResponse
+	if err := json.Unmarshal(respData, &blobResp); err != nil {
+		return BlobWriteResponse{}, errors.Wrap(err, "failed to unmarshal response")
+	}
+
+	return blobResp, nil
+}
+
+func (c *Client) WriteBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobWriteResponse, error) {
+
+	for i := range c.conf.MaxRetries {
+
+		writeResp, err := c.writeBlob(ctx, blobReq)
+		if err == nil {
+			return writeResp, nil
+		}
+
+		if i == c.conf.MaxRetries-1 {
+			return BlobWriteResponse{}, errors.Wrap(err, "failed to write blob")
+		}
+		time.Sleep(c.conf.RetryDelay)
+	}
+
+	return BlobWriteResponse{}, errors.New("unexpected error in WriteBlob method, should not reach here")
 }
