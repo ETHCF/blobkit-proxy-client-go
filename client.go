@@ -66,6 +66,14 @@ func (c *Client) GetStatus(ctx context.Context) (StatusResponse, error) {
 	return status, nil
 }
 
+func (c *Client) GetEscrowContract(ctx context.Context) (string, error) {
+	status, err := c.GetStatus(ctx)
+	if err != nil {
+		return "", err
+	}
+	return status.EscrowContract, nil
+}
+
 func (c *Client) writeBlob(ctx context.Context, blobReq BlobWriteRequest) (BlobWriteResponse, error) {
 	ep, err := url.JoinPath(c.conf.Endpoint, "/api/v1/blob/write")
 	if err != nil {
